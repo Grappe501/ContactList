@@ -5,21 +5,25 @@ import { ApiError } from "./errors";
 const ajv = new Ajv({ allErrors: true, removeAdditional: false, strict: false });
 addFormats(ajv);
 
-// Registry: in later overlays, load generated schemas. For now, keep a small in-code registry.
-const schemas: Record<string, object> = {};
+const validators = new Map<string, (data: unknown) => boolean>();
 
 export function registerSchema(name: string, schema: object) {
-  schemas[name] = schema;
-  ajv.removeSchema(name);
-  ajv.addSchema(schema, name);
+  const validate = ajv.compile(schema);
+  validators.set(name, validate as (data: unknown) => boolean);
 }
 
-export function validateBody<T>(schemaName: string, body: unknown): T {
-  const validate = ajv.getSchema(schemaName);
-  if (!validate) throw new ApiError(500, "INTERNAL", `Schema not registered: ${schemaName}`);
-  const ok = validate(body);
-  if (!ok) {
-    throw new ApiError(400, "VALIDATION_ERROR", "Request body validation failed", { ajv_errors: validate.errors });
+export function validateBody<T>(schemaName: string, data: unknown): T {
+  const validate = validators.get(schemaName);
+  if (!validate) {
+    // Keep ErrorCode compatible with your project's union type.
+    throw new ApiError(500, "INTERNAL", `Schema not registered: ${schemaName}`);
   }
-  return body as T;
+
+  const ok = validate(data);
+  if (!ok) {
+    const details = (validate as any).errors ?? [];
+    throw new ApiError(400, "VALIDATION_ERROR", "Invalid request body", details);
+  }
+
+  return data as T;
 }
