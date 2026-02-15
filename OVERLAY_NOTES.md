@@ -1,17 +1,30 @@
-# Overlay 01 — Phase-0 Scaffold
-Generated: 2026-02-13T00:13:38.857038
+# Overlay 02 — Database Core
+Generated: 2026-02-13T00:21:17.375611
 
 Purpose:
-- Create the full ContactList repo scaffold with **stubbed files** for all modules.
-- No business logic implemented; only compilation/build wiring and placeholder exports.
+- Add the canonical Postgres migration set and operational scripts for Neon.
+- Establish performance indexes and optional fuzzy-search extension.
+
+Files added/updated:
+- `db/migrations/0001_init.sql`
+- `db/migrations/0002_seed_tags.sql`
+- `db/migrations/0003_indexes_search.sql`
+- `db/migrations/0004_optional_pg_trgm.sql` (optional)
+- `db/README_DB.md`
+- `tools/db/run_migrations.ps1`
+- `tools/db/verify_db.ps1`
 
 Apply:
-1) Unzip into ContactList repo root (overwrite ok).
-2) `npm ci` inside `app/web` and `app/functions`.
-3) Copy `ops/netlify.toml.template` into root `netlify.toml` if not present (this overlay includes a starter).
-4) Push to GitHub, connect Netlify.
-5) Next overlay should implement DB + API core per V3 spec.
+1) Unzip into ContactList root (overwrite allowed).
+2) Ensure `DATABASE_URL` is set in your PowerShell session.
+3) Run:
+   - `powershell -ExecutionPolicy Bypass -File .\tools\db\run_migrations.ps1`
+4) Verify:
+   - `powershell -ExecutionPolicy Bypass -File .\tools\db\verify_db.ps1`
 
 Smoke tests:
-- `cd app/web; npm run build`
-- `cd app/functions; npm run build`
+- `psql "$env:DATABASE_URL" -c "\dt"` should show tables.
+- `psql "$env:DATABASE_URL" -c "select count(*) from tags;"` should be >= 10.
+
+Notes:
+- `0004_optional_pg_trgm.sql` is optional; run only if you want fuzzy name search acceleration.
