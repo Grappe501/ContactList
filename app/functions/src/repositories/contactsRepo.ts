@@ -110,7 +110,7 @@ export const contactsRepo = {
     const [listRes, countRes] = await Promise.all([pool.query(listSql, listValues), pool.query(countSql, values)]);
 
     return {
-      data: listRes.rows.map((r) => ({
+      data: listRes.rows.map((r: any) => ({
         id: r.id,
         full_name: r.full_name,
         primary_email: r.primary_email,
@@ -207,7 +207,7 @@ export const contactsRepo = {
   async deleteContact(id: string) {
     const pool = getPool();
     const res = await pool.query(`DELETE FROM contacts WHERE id=$1`, [id]);
-    return res.rowCount > 0;
+    return (res.rowCount ?? 0) > 0;
   },
 
   async getContact(id: string) {
@@ -224,23 +224,32 @@ export const contactsRepo = {
 
     const [sourcesRes, tagsRes, notesRes, dupesRes, mergesRes] = await Promise.all([
       pool.query(`SELECT * FROM contact_sources WHERE contact_id=$1 ORDER BY created_at DESC`, [id]),
-      pool.query(`
+      pool.query(
+        `
         SELECT t.* FROM contact_tags ct
         JOIN tags t ON t.id = ct.tag_id
         WHERE ct.contact_id=$1
         ORDER BY t.name
-      `, [id]),
+      `,
+        [id],
+      ),
       pool.query(`SELECT * FROM notes WHERE contact_id=$1 ORDER BY created_at DESC`, [id]),
-      pool.query(`
+      pool.query(
+        `
         SELECT * FROM duplicate_suggestions
         WHERE (contact_id_a=$1 OR contact_id_b=$1)
         ORDER BY status ASC, score DESC, created_at DESC
-      `, [id]),
-      pool.query(`
+      `,
+        [id],
+      ),
+      pool.query(
+        `
         SELECT * FROM merges
         WHERE survivor_contact_id=$1 OR merged_contact_id=$1
         ORDER BY created_at DESC
-      `, [id]),
+      `,
+        [id],
+      ),
     ]);
 
     return {

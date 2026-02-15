@@ -46,3 +46,18 @@ export function text(statusCode: number, body: string, requestId: string, extraH
 export function error(statusCode: number, err: ErrorResponse, requestId: string, extraHeaders?: Record<string, string>): JsonResponse {
   return json(statusCode, err, requestId, extraHeaders);
 }
+
+/**
+ * api.ts expects a notFound helper.
+ */
+export function notFound(requestId: string): JsonResponse {
+  return json(404, { ok: false, error: { code: "NOT_FOUND", message: "Not found" } }, requestId);
+}
+
+/**
+ * api.ts expects a withRequestId helper.
+ * In this codebase, it is simply the requestId resolver (header or new id).
+ */
+export function withRequestId(event: HandlerEvent): string {
+  return getIncomingRequestId(event) ?? newRequestId();
+}
