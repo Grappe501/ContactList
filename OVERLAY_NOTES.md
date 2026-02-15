@@ -1,30 +1,27 @@
-# Overlay 02 — Database Core
-Generated: 2026-02-13T00:21:17.375611
+# Overlay 05 — Tags + Notes Modules
+Generated: 2026-02-13T00:30:33.960681
 
 Purpose:
-- Add the canonical Postgres migration set and operational scripts for Neon.
-- Establish performance indexes and optional fuzzy-search extension.
+- Implement Tag CRUD (list + upsert) and Contact Tag assignment/removal.
+- Implement Notes (list + create) for a Contact.
+- Wire UI on Contact Detail to show TagsPicker and NotesTimeline minimally (Phase-1 UI wiring).
+- Add route registrations to API router.
 
-Files added/updated:
-- `db/migrations/0001_init.sql`
-- `db/migrations/0002_seed_tags.sql`
-- `db/migrations/0003_indexes_search.sql`
-- `db/migrations/0004_optional_pg_trgm.sql` (optional)
-- `db/README_DB.md`
-- `tools/db/run_migrations.ps1`
-- `tools/db/verify_db.ps1`
+Endpoints implemented:
+- GET    /tags
+- POST   /tags
+- POST   /contacts/:id/tags
+- DELETE /contacts/:id/tags/:tag_id
+- GET    /contacts/:id/notes
+- POST   /contacts/:id/notes
 
 Apply:
-1) Unzip into ContactList root (overwrite allowed).
-2) Ensure `DATABASE_URL` is set in your PowerShell session.
-3) Run:
-   - `powershell -ExecutionPolicy Bypass -File .\tools\db\run_migrations.ps1`
-4) Verify:
-   - `powershell -ExecutionPolicy Bypass -File .\tools\db\verify_db.ps1`
+1) Unzip into ContactList root.
+2) `cd app\functions; npm ci; npm run build`
+3) `cd ..\web; npm ci; npm run build`
 
 Smoke tests:
-- `psql "$env:DATABASE_URL" -c "\dt"` should show tables.
-- `psql "$env:DATABASE_URL" -c "select count(*) from tags;"` should be >= 10.
-
-Notes:
-- `0004_optional_pg_trgm.sql` is optional; run only if you want fuzzy name search acceleration.
+- GET `/.netlify/functions/api/tags`
+- POST `/.netlify/functions/api/tags` { "name":"volunteer", "category":"campaign" }
+- POST `/.netlify/functions/api/contacts/<id>/tags` { "tag_ids":["<taguuid>"] }
+- POST `/.netlify/functions/api/contacts/<id>/notes` { "note_type":"general", "body":"met at event" }
