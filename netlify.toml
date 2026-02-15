@@ -5,12 +5,8 @@
   functions = "app/functions/dist"
 
 [[redirects]]
-from = "/api/*"
-to = "/.netlify/functions/index/:splat"
-status = 200
-
   from = "/api/*"
-  to = "/.netlify/functions/api/:splat"
+  to = "/.netlify/functions/index/:splat"
   status = 200
 
 [[redirects]]
