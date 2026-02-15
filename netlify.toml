@@ -1,10 +1,13 @@
 [build]
-  base = "app/web"
-  command = "npm ci && npm run build"
-  publish = "dist"
+  base = "."
+  command = "npm --prefix app/web ci && npm --prefix app/web run build && npm --prefix app/functions ci && npm --prefix app/functions run build"
+  publish = "app/web/dist"
+  functions = "app/functions/dist"
 
-[functions]
-  directory = "app/functions/dist"
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
 
 [[redirects]]
   from = "/*"
