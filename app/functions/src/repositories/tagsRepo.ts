@@ -23,14 +23,17 @@ export const tagsRepo = {
     return res.rows[0];
   },
 
-  async assign(contactId: string, dto: { tag_ids: string[]; assigned_by?: string; confidence?: number; import_batch_id?: string | null }) {
+  async assign(
+    contactId: string,
+    dto: { tag_ids: string[]; assigned_by?: string; confidence?: number; import_batch_id?: string | null }
+  ) {
     const pool = getPool();
     const assignedBy = dto.assigned_by ?? "manual";
     const confidence = typeof dto.confidence === "number" ? dto.confidence : 1;
     const batchId = dto.import_batch_id ?? null;
 
     const c = await pool.query(`SELECT id FROM contacts WHERE id=$1`, [contactId]);
-    if (c.rowCount === 0) throw new Error("Contact not found");
+    if ((c.rowCount ?? 0) === 0) throw new Error("Contact not found");
 
     await pool.query("BEGIN");
     try {
@@ -57,6 +60,6 @@ export const tagsRepo = {
   async remove(contactId: string, tagId: string) {
     const pool = getPool();
     const res = await pool.query(`DELETE FROM contact_tags WHERE contact_id=$1 AND tag_id=$2`, [contactId, tagId]);
-    return res.rowCount > 0;
+    return (res.rowCount ?? 0) > 0;
   },
 };

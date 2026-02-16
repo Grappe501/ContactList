@@ -1,5 +1,6 @@
 import type { HandlerEvent } from "@netlify/functions";
 import type { ErrorResponse } from "./errors";
+import { err } from "./errors";
 
 export type JsonResponse = {
   statusCode: number;
@@ -15,11 +16,19 @@ export function newRequestId(): string {
   return `req_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
 }
 
+/**
+ * Returns existing x-request-id if present; otherwise generates a new one.
+ * (Overlay code expects this helper name.)
+ */
+export function withRequestId(event: HandlerEvent): string {
+  return getIncomingRequestId(event) ?? newRequestId();
+}
+
 export function baseHeaders(requestId: string): Record<string, string> {
   return {
     "Content-Type": "application/json",
     "x-request-id": requestId,
-    // No-auth private link hardening (baseline). More in later overlay.
+    // Baseline hardening
     "X-Robots-Tag": "noindex, nofollow",
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
@@ -43,21 +52,13 @@ export function text(statusCode: number, body: string, requestId: string, extraH
   };
 }
 
-export function error(statusCode: number, err: ErrorResponse, requestId: string, extraHeaders?: Record<string, string>): JsonResponse {
-  return json(statusCode, err, requestId, extraHeaders);
+export function error(statusCode: number, e: ErrorResponse, requestId: string, extraHeaders?: Record<string, string>): JsonResponse {
+  return json(statusCode, e, requestId, extraHeaders);
 }
 
 /**
- * api.ts expects a notFound helper.
+ * Overlay API helper expects a `notFound()` export.
  */
 export function notFound(requestId: string): JsonResponse {
-  return json(404, { ok: false, error: { code: "NOT_FOUND", message: "Not found" } }, requestId);
-}
-
-/**
- * api.ts expects a withRequestId helper.
- * In this codebase, it is simply the requestId resolver (header or new id).
- */
-export function withRequestId(event: HandlerEvent): string {
-  return getIncomingRequestId(event) ?? newRequestId();
+  return error(404, err("NOT_FOUND", "Not Found", requestId), requestId);
 }

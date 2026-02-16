@@ -231,7 +231,7 @@ export const contactsRepo = {
         WHERE ct.contact_id=$1
         ORDER BY t.name
       `,
-        [id],
+        [id]
       ),
       pool.query(`SELECT * FROM notes WHERE contact_id=$1 ORDER BY created_at DESC`, [id]),
       pool.query(
@@ -240,7 +240,7 @@ export const contactsRepo = {
         WHERE (contact_id_a=$1 OR contact_id_b=$1)
         ORDER BY status ASC, score DESC, created_at DESC
       `,
-        [id],
+        [id]
       ),
       pool.query(
         `
@@ -248,7 +248,7 @@ export const contactsRepo = {
         WHERE survivor_contact_id=$1 OR merged_contact_id=$1
         ORDER BY created_at DESC
       `,
-        [id],
+        [id]
       ),
     ]);
 
