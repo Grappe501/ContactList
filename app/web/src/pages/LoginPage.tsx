@@ -4,9 +4,12 @@ import { supabase } from "../lib/supabaseClient";
 function getNextPath() {
   const url = new URL(window.location.href);
   const next = url.searchParams.get("next");
-  // only allow internal redirects
-  if (next && next.startsWith("/")) return next;
+  if (next && next.startsWith("/")) return next; // internal only
   return "/contacts";
+}
+
+function normalizeEmail(v: string) {
+  return v.trim().toLowerCase();
 }
 
 export default function LoginPage() {
@@ -19,27 +22,35 @@ export default function LoginPage() {
 
   // If already logged in, bounce to app
   useEffect(() => {
+    let mounted = true;
+
     supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
       if (data.session) window.location.replace(nextPath);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
       if (session) window.location.replace(nextPath);
     });
 
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
   }, [nextPath]);
 
   async function loginPassword() {
     try {
       setBusy(true);
       setMsg("Signing in…");
+
       const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: normalizeEmail(email),
         password,
       });
-      if (error) setMsg(error.message);
-      else setMsg("Signed in. Redirecting…");
+
+      setMsg(error ? error.message : "Signed in. Redirecting…");
     } finally {
       setBusy(false);
     }
@@ -49,13 +60,14 @@ export default function LoginPage() {
     try {
       setBusy(true);
       setMsg("Sending magic link…");
+
       const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
+        email: normalizeEmail(email),
         options: {
-          // where the magic link will return to
           emailRedirectTo: `${window.location.origin}${nextPath}`,
         },
       });
+
       setMsg(error ? error.message : "Check your email for the login link.");
     } finally {
       setBusy(false);
@@ -66,23 +78,28 @@ export default function LoginPage() {
     try {
       setBusy(true);
       setMsg("Opening Google sign-in…");
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${window.location.origin}${nextPath}`,
         },
       });
+
       if (error) setMsg(error.message);
     } finally {
       setBusy(false);
     }
   }
 
+  const canMagic = !!normalizeEmail(email);
+  const canPassword = !!normalizeEmail(email) && !!password;
+
   return (
     <div style={{ maxWidth: 520, margin: "80px auto", border: "1px solid #ddd", padding: 16 }}>
       <h2>Sign in</h2>
       <p style={{ color: "#666" }}>
-        This is a private campaign CRM. Sign in to continue.
+        Private campaign CRM. Sign in to continue.
       </p>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -101,6 +118,8 @@ export default function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@campaign.org"
           autoComplete="email"
+          inputMode="email"
+          disabled={busy}
         />
       </label>
 
@@ -115,14 +134,15 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
           autoComplete="current-password"
+          disabled={busy}
         />
       </label>
 
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <button disabled={busy || !email.trim() || !password} onClick={loginPassword}>
+        <button disabled={busy || !canPassword} onClick={loginPassword}>
           Sign in
         </button>
-        <button disabled={busy || !email.trim()} onClick={sendMagicLink}>
+        <button disabled={busy || !canMagic} onClick={sendMagicLink}>
           Send magic link
         </button>
       </div>
