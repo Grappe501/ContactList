@@ -1,3 +1,7 @@
+# =========================
+# Netlify Configuration
+# =========================
+
 [build]
   base = "app"
   publish = "web/dist"
@@ -7,12 +11,32 @@
   directory = "functions/dist"
   node_bundler = "esbuild"
 
+# =========================
+# Local Development
+# =========================
+
+[dev]
+  command = "npm --prefix web run dev"
+  targetPort = 5173
+  port = 8888
+  publish = "web/dist"
+  functions = "functions/dist"
+
+# =========================
+# API Gateway Routing
+# =========================
+
+# Route /api/* to Netlify function named "api"
 [[redirects]]
-  from = "/.netlify/functions/api/*"
+  from = "/api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200
+  force = true
 
-# SPA fallback (HashRouter already, but keep for future)
+# =========================
+# SPA Fallback
+# =========================
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

@@ -1,9 +1,15 @@
 {
   "name": "contactlist-functions",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Serverless API for ContactList (Netlify Functions + Postgres + RLS)",
+  "type": "commonjs",
+  "main": "dist/handler.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "clean": "rimraf dist",
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -p tsconfig.json -w --preserveWatchOutput",
+    "build:prod": "npm run clean && npm run build"
   },
   "dependencies": {
     "@netlify/functions": "^2.8.1",
@@ -16,6 +22,10 @@
   "devDependencies": {
     "@types/node": "^20.14.10",
     "@types/pg": "^8.16.0",
+    "rimraf": "^5.0.5",
     "typescript": "^5.5.4"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

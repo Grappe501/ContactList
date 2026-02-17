@@ -6,12 +6,22 @@
     "moduleResolution": "Node",
     "outDir": "dist",
     "rootDir": "src",
+
     "strict": true,
     "useUnknownInCatchVariables": true,
+
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node"],
+
+    "sourceMap": true,
+    "declaration": false,
+
+    "forceConsistentCasingInFileNames": true,
+    "noEmitOnError": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
 }
