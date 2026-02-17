@@ -19,3 +19,6 @@ yarn-error.log*
 # misc
 .DS_Store
 *.tsbuildinfo
+
+# Local Netlify folder
+.netlify

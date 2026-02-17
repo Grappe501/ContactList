@@ -1,24 +1,29 @@
 import type { Handler } from "@netlify/functions";
-import { json, notFound, withRequestId } from "./shared/http";
+import { handler as mainHandler } from "./index";
+import { json, withRequestId } from "./shared/http";
 import { logger } from "./shared/logger";
-import { healthRoute } from "./routes/health";
 
-// Minimal router stub: implement full router in later overlays.
+/**
+ * Netlify function entrypoint for `/.netlify/functions/api/*`
+ *
+ * Delegates to the main handler in `src/index.ts`, but enforces that a
+ * HandlerResponse is always returned (TypeScript strict compatibility).
+ */
 export const handler: Handler = async (event, context) => {
   const reqId = withRequestId(event);
 
   try {
-    const path = event.path.replace(/^.*\/api/, "/api");
-    const method = event.httpMethod.toUpperCase();
+    const res = await Promise.resolve(mainHandler(event, context));
 
-    // health
-    if (method === "GET" && (path === "/api/health" || path === "/health" || path.endsWith("/health"))) {
-      return json(200, await healthRoute(), reqId);
+    // If mainHandler ever returns void (older Netlify callback style), fail safely.
+    if (!res) {
+      logger.error({ reqId }, "Main handler returned no response");
+      return json(500, { error: { code: "INTERNAL", message: "Internal error", request_id: reqId } }, reqId);
     }
 
-    return notFound(reqId);
+    return res;
   } catch (e) {
-    logger.error({ reqId, err: String(e) }, "Unhandled error");
+    logger.error({ reqId, err: String(e) }, "Unhandled error (api wrapper)");
     return json(500, { error: { code: "INTERNAL", message: "Internal error", request_id: reqId } }, reqId);
   }
 };

@@ -7,7 +7,7 @@ export default function ImportsPage() {
   return (
     <div>
       <h2>Imports</h2>
-      <p>Stub wizards. Implemented in later overlays.</p>
+      <p>Import from CSV, vCard, or Google. Each import stores provenance (WHERE it came from).</p>
       <div style={{ display: "grid", gap: 16 }}>
         <ImportWizardCsv />
         <ImportWizardVcard />
