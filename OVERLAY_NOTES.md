@@ -1,26 +1,43 @@
-# Overlay 07 — vCard Import Engine
-Generated: 2026-02-13T00:42:53.752828
+# Overlay 11 — Private-Link Gate + Basic Hardening
+Generated: 2026-02-13T01:04:17.268132
 
-Purpose:
-- Implement vCard (.vcf) import pipeline with:
-  - Server-side vCard parsing (VCARD 2.1/3.0/4.0 best-effort)
-  - Preview endpoint: show parsed cards + inferred mapping to canonical fields
-  - Commit endpoint: creates import batch + contacts + provenance (contact_sources)
-  - Note extraction: NOTE -> contacts.metadata.custom_fields.note or Notes (optional: kept in custom_fields for now)
-  - Row/card fingerprinting for idempotent ingestion within batch
+Goal:
+- Add a **private-link gate** (shared secret) to the dashboard without implementing full auth.
+- Apply baseline API hardening:
+  - CORS allow-list
+  - Security headers
+  - Basic request size limits for uploads
+  - Rate limiting (lightweight, stateless best-effort)
+  - API key gating for all non-health endpoints
+  - CSRF-safe design (no cookies required; header-based token)
 
-Endpoints added (relative to `/.netlify/functions/api`):
-- POST /imports/vcard/preview
-- POST /imports/vcard/commit
+## Private-link model
+- User shares a URL like:
+  `https://<site>.netlify.app/#/?k=<PRIVATE_LINK_KEY>`
+- The SPA stores it in `localStorage`.
+- All API calls include header: `x-contactlist-key: <PRIVATE_LINK_KEY>`
 
-Payload shapes:
-- preview: { file_name?, vcard_text OR vcard_base64, source_label? }
-- commit:  { file_name?, vcard_text OR vcard_base64, source_type='vcard', source_label, donor_name?, donor_org?, operator_label?, defaults? }
+## Netlify env vars
+Required:
+- PRIVATE_LINK_KEY                 (a long random secret; rotate anytime)
+Optional:
+- CORS_ALLOWED_ORIGINS             (comma-separated, default uses APP_BASE_URL)
+- REQUEST_BODY_MAX_BYTES           (default 5_000_000)
+- RATE_LIMIT_RPM                   (default 120)
+
+## Server enforcement
+- Middleware blocks all endpoints except:
+  - GET /health
+  - GET /integrations/google/callback (must be reachable by Google redirect)
+- Google callback bypass is limited to that single path.
+
+## UI
+- Landing gate screen if no key present or key invalid.
+- "Logout" clears key.
 
 Apply:
-1) Unzip into ContactList root.
-2) `cd app\functions; npm ci; npm run build`
-3) `cd ..\web; npm ci; npm run build`
-
-Smoke tests:
-- Use Imports page -> vCard Import -> Preview -> Commit
+1) Unzip into repo root
+2) Set env vars in Netlify:
+   - PRIVATE_LINK_KEY
+   - APP_BASE_URL
+3) Deploy

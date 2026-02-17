@@ -6,6 +6,7 @@ import { qk } from "../lib/queryKeys";
 import { formatApiError } from "../lib/errors";
 import TagsPicker from "../components/TagsPicker";
 import NotesTimeline from "../components/NotesTimeline";
+import AiTagSuggest from "../components/AiTagSuggest";
 
 type Bundle = {
   contact: any;
@@ -42,6 +43,9 @@ export default function ContactDetailPage() {
           <NotesTimeline contactId={id} notes={data?.notes ?? []} />
         </section>
       </div>
+
+      <AiTagSuggest contactId={id} />
+
       <section style={{ marginTop: 12, border: "1px solid #ddd", padding: 12 }}>
         <h3>Sources (Provenance)</h3>
         <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(data?.sources ?? [], null, 2)}</pre>

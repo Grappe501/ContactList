@@ -4,6 +4,9 @@ import { listContacts, createContact, getContactBundle, updateContact, deleteCon
 import { listTags, upsertTag, assignTags, removeTag } from "./tags";
 import { listNotes, addNote } from "./notes";
 import { csvPreview, csvCommit, vcardPreview, vcardCommit, listBatches } from "./imports";
+import { googleStatus, googleStart, googleCallback, googleSync } from "./integrations_google";
+import { suggestTags, applyTags, searchAi } from "./ai";
+import { runDedupe, listSuggestions, resolveSuggestion, mergeContacts } from "./dedupe";
 
 export function registerRoutes(router: SimpleRouter) {
   router.add("GET", "/health", async () => ({ status: 200, body: await healthRoute() }));
@@ -31,4 +34,21 @@ export function registerRoutes(router: SimpleRouter) {
   router.add("POST", "/imports/csv/commit", csvCommit);
   router.add("POST", "/imports/vcard/preview", vcardPreview);
   router.add("POST", "/imports/vcard/commit", vcardCommit);
+
+  // Integrations — Google
+  router.add("GET", "/integrations/google/status", googleStatus);
+  router.add("GET", "/integrations/google/start", googleStart);
+  router.add("GET", "/integrations/google/callback", googleCallback);
+  router.add("POST", "/integrations/google/sync", googleSync);
+
+  // AI
+  router.add("POST", "/ai/tags/suggest", suggestTags);
+  router.add("POST", "/ai/tags/apply", applyTags);
+  router.add("POST", "/ai/contacts/search_ai", searchAi);
+
+  // De-dupe + Merge
+  router.add("POST", "/dedupe/run", runDedupe);
+  router.add("GET", "/dedupe/suggestions", listSuggestions);
+  router.add("POST", "/dedupe/suggestions/:id/resolve", resolveSuggestion);
+  router.add("POST", "/dedupe/merge", mergeContacts);
 }

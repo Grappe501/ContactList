@@ -1,37 +1,56 @@
-export const API_BASE = "/.netlify/functions/api";
+import { getPrivateKey } from "./privateKey";
 
-export type ApiError = {
-  error: { code: string; message: string; request_id: string; details?: Record<string, unknown> };
-};
+const API_BASE = "/.netlify/functions/api";
+
+async function handle(resp: Response) {
+  if (!resp.ok) {
+    const t = await resp.text();
+    throw new Error(t || `HTTP ${resp.status}`);
+  }
+  const ct = resp.headers.get("content-type") ?? "";
+  if (ct.includes("application/json")) return await resp.json();
+  return await resp.text();
+}
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { method: "GET" });
-  if (!res.ok) throw (await res.json()) as ApiError;
-  return (await res.json()) as T;
+  const key = getPrivateKey();
+  const resp = await fetch(`${API_BASE}${path}`, {
+    headers: key ? { "x-contactlist-key": key } : {},
+  });
+  return await handle(resp);
 }
 
-export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+export async function apiPost<T>(path: string, body: any): Promise<T> {
+  const key = getPrivateKey();
+  const resp = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
+    headers: {
+      "Content-Type": "application/json",
+      ...(key ? { "x-contactlist-key": key } : {}),
+    },
+    body: JSON.stringify(body),
   });
-  if (!res.ok) throw (await res.json()) as ApiError;
-  return (await res.json()) as T;
+  return await handle(resp);
 }
 
-export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+export async function apiPut<T>(path: string, body: any): Promise<T> {
+  const key = getPrivateKey();
+  const resp = await fetch(`${API_BASE}${path}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
+    headers: {
+      "Content-Type": "application/json",
+      ...(key ? { "x-contactlist-key": key } : {}),
+    },
+    body: JSON.stringify(body),
   });
-  if (!res.ok) throw (await res.json()) as ApiError;
-  return (await res.json()) as T;
+  return await handle(resp);
 }
 
 export async function apiDelete<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE" });
-  if (!res.ok) throw (await res.json()) as ApiError;
-  return (await res.json()) as T;
+  const key = getPrivateKey();
+  const resp = await fetch(`${API_BASE}${path}`, {
+    method: "DELETE",
+    headers: key ? { "x-contactlist-key": key } : {},
+  });
+  return await handle(resp);
 }

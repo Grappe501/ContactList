@@ -13,6 +13,8 @@ export type ListParams = {
 
 export const contactsService = {
   async list(params: ListParams) {
+    // Back-compat: use listContacts if present, else list()
+    // (contactsRepo here has both)
     return await contactsRepo.listContacts(params);
   },
 
