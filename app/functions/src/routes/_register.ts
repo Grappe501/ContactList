@@ -7,6 +7,7 @@ import { csvPreview, csvCommit, vcardPreview, vcardCommit, listBatches } from ".
 import { googleStatus, googleStart, googleCallback, googleSync } from "./integrations_google";
 import { suggestTags, applyTags, searchAi } from "./ai";
 import { runDedupe, listSuggestions, resolveSuggestion, mergeContacts } from "./dedupe";
+import { listUsers, setUserRole, setUserStatus } from "./users";
 
 export function registerRoutes(router: SimpleRouter) {
   router.add("GET", "/health", async () => ({ status: 200, body: await healthRoute() }));
@@ -51,4 +52,9 @@ export function registerRoutes(router: SimpleRouter) {
   router.add("GET", "/dedupe/suggestions", listSuggestions);
   router.add("POST", "/dedupe/suggestions/:id/resolve", resolveSuggestion);
   router.add("POST", "/dedupe/merge", mergeContacts);
+
+  // Users admin
+  router.add("GET", "/users", listUsers);
+  router.add("PUT", "/users/:id/role", setUserRole);
+  router.add("PUT", "/users/:id/status", setUserStatus);
 }

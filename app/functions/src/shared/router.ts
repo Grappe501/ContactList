@@ -1,75 +1,89 @@
-import type { HandlerEvent } from "@netlify/functions";
+export type RouteResult = { status: number; body: any };
 
-export type RouteHandler = (event: HandlerEvent, params: Record<string, string>) => Promise<{ status: number; body: unknown }>;
+// Your route handlers in routes/* are typed like (event, params: Record<string,string>) => ...
+// So params MUST always be provided (never undefined).
+export type RouteHandler = (event: any, params: Record<string, string>) => Promise<RouteResult> | RouteResult;
 
 type Route = {
   method: string;
-  pattern: string; // e.g. /contacts/:id
-  segments: string[];
+  pattern: string;
+  parts: string[];
   handler: RouteHandler;
 };
+
+function splitPath(p: string): string[] {
+  const s = (p || "/").replace(/\/+$/, "");
+  return s.split("/").filter(Boolean);
+}
+
+function matchRoute(patternParts: string[], pathParts: string[]) {
+  if (patternParts.length !== pathParts.length) return { ok: false as const, params: {} as Record<string, string> };
+
+  const params: Record<string, string> = {};
+  for (let i = 0; i < patternParts.length; i++) {
+    const pp = patternParts[i];
+    const pv = pathParts[i];
+
+    if (pp.startsWith(":")) {
+      params[pp.slice(1)] = decodeURIComponent(pv);
+      continue;
+    }
+
+    if (pp !== pv) return { ok: false as const, params: {} as Record<string, string> };
+  }
+
+  return { ok: true as const, params };
+}
+
+/**
+ * Netlify function paths often look like:
+ *  - "/.netlify/functions/index/contacts"
+ *  - "/.netlify/functions/api/contacts"
+ *  - "/api/contacts" (sometimes depending on proxy)
+ *
+ * This normalizes to an internal API path like:
+ *  - "/contacts"
+ */
+export function extractApiPath(eventPath: string): string {
+  const p = eventPath || "/";
+
+  // Strip Netlify wrapper prefix
+  const m = p.match(/\/\.netlify\/functions\/(api|index)(\/.*)?$/);
+  if (m) return m[2] ? m[2] : "/";
+
+  // Strip leading "/api" if present
+  if (p === "/api") return "/";
+  if (p.startsWith("/api/")) return p.slice(4);
+
+  // Otherwise keep as-is
+  return p.startsWith("/") ? p : `/${p}`;
+}
 
 export class SimpleRouter {
   private routes: Route[] = [];
 
   add(method: string, pattern: string, handler: RouteHandler) {
-    const normalized = normalizePath(pattern);
-    this.routes.push({
-      method: method.toUpperCase(),
-      pattern: normalized,
-      segments: normalized.split("/").filter(Boolean),
-      handler,
-    });
+    const m = method.toUpperCase();
+    const pat = pattern.startsWith("/") ? pattern : `/${pattern}`;
+    const parts = splitPath(pat);
+    this.routes.push({ method: m, pattern: pat, parts, handler });
   }
 
-  async dispatch(method: string, path: string, event: HandlerEvent): Promise<{ status: number; body: unknown } | null> {
-    const m = method.toUpperCase();
-    const p = normalizePath(path);
-    const segs = p.split("/").filter(Boolean);
+  async dispatch(method: string, path: string, event: any): Promise<RouteResult | null> {
+    const m = String(method || "GET").toUpperCase();
+    const p = path && path.startsWith("/") ? path : `/${path || ""}`;
+    const pathParts = splitPath(p);
 
     for (const r of this.routes) {
       if (r.method !== m) continue;
-      if (r.segments.length !== segs.length) continue;
 
-      const params: Record<string, string> = {};
-      let ok = true;
+      const { ok, params } = matchRoute(r.parts, pathParts);
+      if (!ok) continue;
 
-      for (let i = 0; i < r.segments.length; i++) {
-        const rs = r.segments[i];
-        const ps = segs[i];
-        if (rs.startsWith(":")) {
-          params[rs.slice(1)] = decodeURIComponent(ps);
-        } else if (rs !== ps) {
-          ok = false;
-          break;
-        }
-      }
-
-      if (ok) return await r.handler(event, params);
+      // IMPORTANT: params is ALWAYS a Record<string,string>
+      return await r.handler(event, params);
     }
 
     return null;
   }
-}
-
-export function extractApiPath(netlifyPath: string): string {
-  // Netlify event.path is like "/.netlify/functions/api/contacts"
-  const idx = netlifyPath.indexOf("/.netlify/functions/api");
-  if (idx >= 0) {
-    const rest = netlifyPath.slice(idx + "/.netlify/functions/api".length);
-    return normalizePath(rest || "/");
-  }
-  // Local/dev fallback: accept as-is
-  return normalizePath(netlifyPath);
-}
-
-function normalizePath(p: string): string {
-  if (!p) return "/";
-  let out = p.trim();
-  // remove query string if present
-  const q = out.indexOf("?");
-  if (q >= 0) out = out.slice(0, q);
-  if (!out.startsWith("/")) out = "/" + out;
-  if (out.length > 1 && out.endsWith("/")) out = out.slice(0, -1);
-  return out;
 }

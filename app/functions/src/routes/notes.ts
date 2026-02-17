@@ -1,20 +1,24 @@
 import type { HandlerEvent } from "@netlify/functions";
 import { ApiError } from "../shared/errors";
-import { notesService } from "../services/notesService";
+import { notesRepo } from "../repositories/notesRepo";
+import { withDb } from "../shared/withDb";
 
-export async function listNotes(_event: HandlerEvent, params: Record<string, string>) {
-  const contactId = params.id;
-  const data = await notesService.list(contactId);
-  return { status: 200, body: { data } };
+export async function listNotes(event: HandlerEvent) {
+  const id = (event as any).params?.id as string | undefined;
+  if (!id) throw new ApiError(400, "VALIDATION_ERROR", "Missing contact id");
+  const rows = await withDb(event, async (db) => await notesRepo.list(id, db));
+  return { status: 200, body: { data: rows } };
 }
 
-export async function addNote(event: HandlerEvent, params: Record<string, string>) {
-  const contactId = params.id;
+export async function addNote(event: HandlerEvent) {
+  const id = (event as any).params?.id as string | undefined;
+  if (!id) throw new ApiError(400, "VALIDATION_ERROR", "Missing contact id");
   if (!event.body) throw new ApiError(400, "VALIDATION_ERROR", "Missing request body");
+
   const body = JSON.parse(event.body);
-  if (!body?.note_type || !body?.body) {
-    throw new ApiError(400, "VALIDATION_ERROR", "note_type and body are required");
-  }
-  const created = await notesService.create(contactId, body);
-  return { status: 201, body: created };
+  if (!body?.body) throw new ApiError(400, "VALIDATION_ERROR", "body required");
+
+  const u = (event as any).__user;
+  const row = await withDb(event, async (db) => await notesRepo.add(id, { note_type: body.note_type, body: body.body, created_by: u?.id ?? null }, db));
+  return { status: 201, body: { data: row } };
 }

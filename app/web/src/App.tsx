@@ -4,19 +4,23 @@ import ContactsPage from "./pages/ContactsPage";
 import ContactDetailPage from "./pages/ContactDetailPage";
 import ImportsPage from "./pages/ImportsPage";
 import DedupePage from "./pages/DedupePage";
-import GatePage from "./pages/GatePage";
-import { getPrivateKey, clearPrivateKey } from "./lib/privateKey";
+import LoginPage from "./pages/LoginPage";
+import AdminUsersPage from "./pages/AdminUsersPage";
+import { supabase } from "./lib/supabaseClient";
+import { signOut } from "./lib/auth";
 
 export default function App() {
-  const [unlocked, setUnlocked] = useState(Boolean(getPrivateKey()));
+  const [authed, setAuthed] = useState<boolean>(false);
 
   useEffect(() => {
-    setUnlocked(Boolean(getPrivateKey()));
+    supabase.auth.getSession().then(({ data }) => setAuthed(Boolean(data.session)));
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthed(Boolean(session));
+    });
+    return () => { sub.subscription.unsubscribe(); };
   }, []);
 
-  if (!unlocked) {
-    return <GatePage onUnlocked={() => setUnlocked(true)} />;
-  }
+  if (!authed) return <LoginPage />;
 
   return (
     <HashRouter>
@@ -27,11 +31,9 @@ export default function App() {
             <Link to="/">Contacts</Link>
             <Link to="/imports">Imports</Link>
             <Link to="/dedupe">De-dupe</Link>
-            <button
-              style={{ marginLeft: 10 }}
-              onClick={() => { clearPrivateKey(); window.location.reload(); }}
-            >
-              Logout
+            <Link to="/admin/users">Admin</Link>
+            <button style={{ marginLeft: 10 }} onClick={() => { signOut().then(() => window.location.reload()); }}>
+              Sign out
             </button>
           </nav>
         </header>
@@ -40,6 +42,7 @@ export default function App() {
           <Route path="/" element={<ContactsPage />} />
           <Route path="/imports" element={<ImportsPage />} />
           <Route path="/dedupe" element={<DedupePage />} />
+          <Route path="/admin/users" element={<AdminUsersPage />} />
           <Route path="/contacts/:id" element={<ContactDetailPage />} />
         </Routes>
       </div>

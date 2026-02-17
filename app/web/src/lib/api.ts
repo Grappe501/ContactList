@@ -1,4 +1,4 @@
-import { getPrivateKey } from "./privateKey";
+import { getAccessToken } from "./auth";
 
 const API_BASE = "/.netlify/functions/api";
 
@@ -12,21 +12,24 @@ async function handle(resp: Response) {
   return await resp.text();
 }
 
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await getAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
-  const key = getPrivateKey();
   const resp = await fetch(`${API_BASE}${path}`, {
-    headers: key ? { "x-contactlist-key": key } : {},
+    headers: { ...(await authHeaders()) },
   });
   return await handle(resp);
 }
 
 export async function apiPost<T>(path: string, body: any): Promise<T> {
-  const key = getPrivateKey();
   const resp = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(key ? { "x-contactlist-key": key } : {}),
+      ...(await authHeaders()),
     },
     body: JSON.stringify(body),
   });
@@ -34,12 +37,11 @@ export async function apiPost<T>(path: string, body: any): Promise<T> {
 }
 
 export async function apiPut<T>(path: string, body: any): Promise<T> {
-  const key = getPrivateKey();
   const resp = await fetch(`${API_BASE}${path}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      ...(key ? { "x-contactlist-key": key } : {}),
+      ...(await authHeaders()),
     },
     body: JSON.stringify(body),
   });
@@ -47,10 +49,9 @@ export async function apiPut<T>(path: string, body: any): Promise<T> {
 }
 
 export async function apiDelete<T>(path: string): Promise<T> {
-  const key = getPrivateKey();
   const resp = await fetch(`${API_BASE}${path}`, {
     method: "DELETE",
-    headers: key ? { "x-contactlist-key": key } : {},
+    headers: { ...(await authHeaders()) },
   });
   return await handle(resp);
 }

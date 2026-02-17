@@ -1,42 +1,51 @@
-import type { Handler, HandlerEvent } from "@netlify/functions";
-import { router } from "./shared/router";
+import type { Handler } from "@netlify/functions";
+import { logger } from "./shared/logger";
+import { getIncomingRequestId, newRequestId, json, error } from "./shared/http";
+import { buildContext } from "./shared/request";
+import { corsHeaders } from "./shared/cors";
+import { enforceRateLimit } from "./shared/rateLimit";
+import { ApiError, err } from "./shared/errors";
+import { SimpleRouter, extractApiPath } from "./shared/router";
 import { registerRoutes } from "./routes/_register";
-import { ApiError } from "./shared/errors";
-import { corsHeaders, securityHeaders, enforceBodySize, requirePrivateKey, rateLimit } from "./shared/security";
+import { registerCoreSchemas } from "./shared/schemaRegistry";
 
+const router = new SimpleRouter();
+registerCoreSchemas();
 registerRoutes(router);
 
-function json(status: number, body: any, headers: Record<string,string>) {
-  return {
-    statusCode: status,
-    headers: { "Content-Type": "application/json", ...headers },
-    body: typeof body === "string" ? body : JSON.stringify(body),
-  };
-}
-
-export const handler: Handler = async (event: HandlerEvent) => {
-  const origin = (event.headers as any)?.origin ?? (event.headers as any)?.Origin ?? null;
-  const cors = corsHeaders(origin);
-  const sec = securityHeaders();
-
-  if (event.httpMethod === "OPTIONS") {
-    return { statusCode: 204, headers: { ...cors, ...sec }, body: "" };
-  }
-
-  // Compute path relative to function mount: "/.netlify/functions/api/<path>"
-  const rawPath = event.path ?? "/";
-  const idx = rawPath.indexOf("/.netlify/functions/api");
-  const path = idx >= 0 ? rawPath.slice(idx + "/.netlify/functions/api".length) || "/" : rawPath;
+export const handler: Handler = async (event) => {
+  const requestId = getIncomingRequestId(event) ?? newRequestId();
+  const ctx = buildContext(event, requestId);
+  const headers = corsHeaders(ctx);
 
   try {
-    rateLimit(event);
-    enforceBodySize(event);
-    requirePrivateKey(event, path);
+    if (event.httpMethod.toUpperCase() === "OPTIONS") {
+      return json(200, { ok: true }, requestId, headers);
+    }
 
-    const result = await router.handle(event.httpMethod, path, event);
-    return json(result.status, result.body, { ...cors, ...sec });
-  } catch (e: any) {
-    const err = e instanceof ApiError ? e : new ApiError(500, "INTERNAL", String(e?.message ?? e));
-    return json(err.httpStatus, { error: { code: err.code, message: err.message } }, { ...cors, ...sec });
+    enforceRateLimit(ctx);
+
+    const apiPath = extractApiPath(event.path);
+    const result = await router.dispatch(event.httpMethod, apiPath, event);
+
+    if (!result) {
+      return error(404, err("NOT_FOUND", "Not found", requestId), requestId, headers);
+    }
+
+    return json(result.status, result.body, requestId, headers);
+  } catch (e) {
+    if (e instanceof ApiError) {
+      logger.warn({ requestId, code: e.code, status: e.status, path: ctx.path }, "API error");
+      return error(e.status, err(e.code, e.message, requestId, e.details), requestId, {
+        ...headers,
+        ...(e.status === 429 ? { "Retry-After": String(e.details?.retry_after_seconds ?? 10) } : {}),
+      });
+    }
+
+    logger.error({ requestId, err: String(e), path: ctx.path }, "Unhandled error");
+    return error(500, err("INTERNAL", "Internal error", requestId), requestId, headers);
+  } finally {
+    const dur = Date.now() - ctx.startMs;
+    logger.info({ requestId, method: ctx.method, path: ctx.path, duration_ms: dur }, "request_complete");
   }
 };

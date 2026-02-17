@@ -4,6 +4,10 @@ export type ErrorCode =
   | "CONFLICT"
   | "INTERNAL"
   | "RATE_LIMIT"
+  | "RATE_LIMITED"
+  | "PAYLOAD_TOO_LARGE"
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
   | "UPSTREAM";
 
 export type ErrorResponse = {

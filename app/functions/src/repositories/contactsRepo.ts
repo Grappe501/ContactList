@@ -1,57 +1,12 @@
-import { getPool } from "../shared/db";
-
-type ContactDTO = {
-  full_name?: string | null;
-  first_name?: string | null;
-  middle_name?: string | null;
-  last_name?: string | null;
-  suffix?: string | null;
-
-  primary_email?: string | null;
-  primary_phone?: string | null;
-  emails?: string[] | null;
-  phones?: string[] | null;
-
-  street?: string | null;
-  street2?: string | null;
-  city?: string | null;
-  state?: string | null;
-  postal_code?: string | null;
-  country?: string | null;
-
-  company?: string | null;
-  title?: string | null;
-  organization?: string | null;
-  website?: string | null;
-
-  birthday?: string | null; // stored as text/date depending on schema
-  metadata?: any;
-};
-
-const ALLOWED_SORT = new Set(["created_at", "updated_at", "full_name"]);
-
-function cleanStr(v: any): string | null {
-  if (v === undefined || v === null) return null;
-  const s = String(v).trim();
-  return s.length ? s : null;
-}
-
-function cleanStrArray(v: any): string[] {
-  if (!Array.isArray(v)) return [];
-  return v.map((x) => String(x).trim()).filter(Boolean);
-}
+import { q, DbClient } from "./_client";
 
 export const contactsRepo = {
-  /**
-   * Overlay 09 "new" list method (kept).
-   */
-  async list(params: any) {
-    const pool = getPool();
+  async list(params: any, client: DbClient | null = null) {
     const page = Math.max(1, Number(params.page ?? 1));
     const pageSize = Math.min(100, Math.max(1, Number(params.page_size ?? 25)));
     const offset = (page - 1) * pageSize;
 
-    const q = (params.q ?? "").trim();
+    const query = (params.q ?? "").trim();
     const tag = (params.tag ?? "").trim();
     const state = (params.state ?? "").trim();
     const sourceType = (params.source_type ?? "").trim();
@@ -63,13 +18,13 @@ export const contactsRepo = {
     const values: any[] = [];
     let idx = 1;
 
-    if (q) {
+    if (query) {
       where.push(`(
         full_name ILIKE $${idx} OR
         primary_email ILIKE $${idx} OR
         primary_phone ILIKE $${idx}
       )`);
-      values.push(`%${q}%`);
+      values.push(`%${query}%`);
       idx++;
     }
 
@@ -96,9 +51,10 @@ export const contactsRepo = {
     }
 
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-    const sortCol = ALLOWED_SORT.has(sort) ? sort : "created_at";
+    const sortCol = ["created_at", "updated_at", "full_name"].includes(sort) ? sort : "created_at";
 
-    const res = await pool.query(
+    const res = await q(
+      client,
       `SELECT * FROM contacts ${whereSql} ORDER BY ${sortCol} ${order} LIMIT $${idx} OFFSET $${idx + 1}`,
       [...values, pageSize, offset]
     );
@@ -106,46 +62,38 @@ export const contactsRepo = {
     return res.rows;
   },
 
-  /**
-   * Back-compat method name (expected by older services).
-   */
-  async listContacts(params: any) {
-    return await contactsRepo.list(params);
-  },
-
-  /**
-   * Overlay 09 "new" bundle method (kept).
-   */
-  async getBundle(contactId: string) {
-    const pool = getPool();
-    const c = await pool.query(`SELECT * FROM contacts WHERE id=$1`, [contactId]);
+  async getBundle(contactId: string, client: DbClient | null = null) {
+    const c = await q(client, `SELECT * FROM contacts WHERE id=$1`, [contactId]);
     const contact = c.rows[0];
     if (!contact) return null;
 
     const sources = (
-      await pool.query(`SELECT * FROM contact_sources WHERE contact_id=$1 ORDER BY created_at DESC`, [contactId])
+      await q(client, `SELECT * FROM contact_sources WHERE contact_id=$1 ORDER BY created_at DESC`, [contactId])
     ).rows;
 
     const tags = (
-      await pool.query(
+      await q(
+        client,
         `
-        SELECT t.* FROM tags t
-        JOIN contact_tags ct ON ct.tag_id = t.id
-        WHERE ct.contact_id=$1
-        ORDER BY t.name
-        `,
+      SELECT t.* FROM tags t
+      JOIN contact_tags ct ON ct.tag_id = t.id
+      WHERE ct.contact_id=$1
+      ORDER BY t.name
+    `,
         [contactId]
       )
     ).rows;
 
-    const notes = (await pool.query(`SELECT * FROM notes WHERE contact_id=$1 ORDER BY created_at DESC`, [contactId])).rows;
+    const notes = (await q(client, `SELECT * FROM notes WHERE contact_id=$1 ORDER BY created_at DESC`, [contactId]))
+      .rows;
 
     const dupes = (
-      await pool.query(`SELECT * FROM duplicate_suggestions WHERE contact_id=$1 ORDER BY created_at DESC`, [contactId])
+      await q(client, `SELECT * FROM duplicate_suggestions WHERE contact_id=$1 ORDER BY created_at DESC`, [contactId])
     ).rows;
 
     const merges = (
-      await pool.query(
+      await q(
+        client,
         `SELECT * FROM merge_history WHERE survivor_contact_id=$1 OR merged_contact_id=$1 ORDER BY created_at DESC`,
         [contactId]
       )
@@ -154,24 +102,13 @@ export const contactsRepo = {
     return { contact, sources, tags, notes, duplicate_suggestions: dupes, merge_history: merges };
   },
 
-  /**
-   * Back-compat method name (expected by older services).
-   */
-  async getContactBundle(contactId: string) {
-    return await contactsRepo.getBundle(contactId);
-  },
-
-  /**
-   * Overlay 09 "new" searchCandidates (kept).
-   */
-  async searchCandidates(query: string, limit: number) {
-    const pool = getPool();
-    const q = `%${query.trim()}%`;
+  async searchCandidates(query: string, limit: number, client: DbClient | null = null) {
+    const qLike = `%${query.trim()}%`;
     const exact = query.trim();
-
-    const res = await pool.query(
+    const res = await q(
+      client,
       `
-      SELECT id, full_name, primary_email, primary_phone, city, state, organization, company, title, created_at
+      SELECT id, full_name, primary_email, primary_phone, city, state, organization, company, title, created_at, updated_at
       FROM contacts
       WHERE
         full_name ILIKE $1 OR
@@ -189,170 +126,112 @@ export const contactsRepo = {
         updated_at DESC
       LIMIT $3
       `,
-      [q, exact, limit]
+      [qLike, exact, limit]
     );
-
     return res.rows;
   },
 
-  /**
-   * Restored CRUD — required by routes/services already in the project.
-   */
-  async createContact(dto: ContactDTO) {
-    const pool = getPool();
+  // ---------------------------------------------------------------------------
+  // Back-compat method names expected by services / older modules
+  // ---------------------------------------------------------------------------
 
-    const fullName = cleanStr(dto.full_name) ?? "(unknown)";
-    const first = cleanStr(dto.first_name);
-    const middle = cleanStr(dto.middle_name);
-    const last = cleanStr(dto.last_name);
-    const suffix = cleanStr(dto.suffix);
+  async listContacts(params: any, client: DbClient | null = null) {
+    return await contactsRepo.list(params, client);
+  },
 
-    const primaryEmail = cleanStr(dto.primary_email);
-    const primaryPhone = cleanStr(dto.primary_phone);
+  async getContactBundle(contactId: string, client: DbClient | null = null) {
+    return await contactsRepo.getBundle(contactId, client);
+  },
 
-    const emails = cleanStrArray(dto.emails ?? (primaryEmail ? [primaryEmail] : []));
-    const phones = cleanStrArray(dto.phones ?? (primaryPhone ? [primaryPhone] : []));
+  // ---------------------------------------------------------------------------
+  // CRUD helpers: services still call these even if routes moved to repo-style
+  // ---------------------------------------------------------------------------
 
-    const street = cleanStr(dto.street);
-    const street2 = cleanStr(dto.street2);
-    const city = cleanStr(dto.city);
-    const state = cleanStr(dto.state);
-    const postal = cleanStr(dto.postal_code);
-    const country = cleanStr(dto.country) ?? "USA";
-
-    const company = cleanStr(dto.company);
-    const title = cleanStr(dto.title);
-    const org = cleanStr(dto.organization);
-    const website = cleanStr(dto.website);
-    const birthday = cleanStr(dto.birthday);
-
-    const metadata = dto.metadata ?? null;
-
-    const res = await pool.query(
+  async createContact(dto: any, client: DbClient | null = null) {
+    const res = await q(
+      client,
       `
       INSERT INTO contacts (
-        full_name, first_name, middle_name, last_name, suffix,
-        primary_email, primary_phone, emails, phones,
-        street, street2, city, state, postal_code, country,
-        company, title, organization, website, birthday,
+        full_name,
+        first_name,
+        last_name,
+        organization,
+        company,
+        title,
+        primary_email,
+        primary_phone,
+        emails,
+        phones,
+        city,
+        state,
         metadata
       )
-      VALUES (
-        $1,$2,$3,$4,$5,
-        $6,$7,$8,$9,
-        $10,$11,$12,$13,$14,$15,
-        $16,$17,$18,$19,$20,
-        $21
-      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       RETURNING *
       `,
       [
-        fullName,
-        first,
-        middle,
-        last,
-        suffix,
-        primaryEmail,
-        primaryPhone,
-        emails,
-        phones,
-        street,
-        street2,
-        city,
-        state,
-        postal,
-        country,
-        company,
-        title,
-        org,
-        website,
-        birthday,
-        metadata,
+        dto.full_name ?? null,
+        dto.first_name ?? null,
+        dto.last_name ?? null,
+        dto.organization ?? null,
+        dto.company ?? null,
+        dto.title ?? null,
+        dto.primary_email ?? null,
+        dto.primary_phone ?? null,
+        dto.emails ?? [],
+        dto.phones ?? [],
+        dto.city ?? null,
+        dto.state ?? null,
+        dto.metadata ?? {},
       ]
     );
-
     return res.rows[0];
   },
 
-  async updateContact(id: string, patch: ContactDTO) {
-    const pool = getPool();
-
-    const allowed: Array<keyof ContactDTO> = [
-      "full_name",
-      "first_name",
-      "middle_name",
-      "last_name",
-      "suffix",
-      "primary_email",
-      "primary_phone",
-      "emails",
-      "phones",
-      "street",
-      "street2",
-      "city",
-      "state",
-      "postal_code",
-      "country",
-      "company",
-      "title",
-      "organization",
-      "website",
-      "birthday",
-      "metadata",
-    ];
-
-    const sets: string[] = [];
-    const values: any[] = [];
-    let i = 1;
-
-    for (const k of allowed) {
-      if (!(k in patch)) continue;
-
-      if (k === "emails") {
-        sets.push(`${k} = $${i}`);
-        values.push(cleanStrArray((patch as any)[k]));
-        i++;
-        continue;
-      }
-
-      if (k === "phones") {
-        sets.push(`${k} = $${i}`);
-        values.push(cleanStrArray((patch as any)[k]));
-        i++;
-        continue;
-      }
-
-      if (k === "metadata") {
-        sets.push(`${k} = $${i}`);
-        values.push((patch as any)[k] ?? null);
-        i++;
-        continue;
-      }
-
-      sets.push(`${k} = $${i}`);
-      values.push(cleanStr((patch as any)[k]));
-      i++;
-    }
-
-    if (sets.length === 0) {
-      const cur = await pool.query(`SELECT * FROM contacts WHERE id=$1`, [id]);
-      return cur.rows[0] ?? null;
-    }
-
-    // Keep updated_at fresh if your schema supports it
-    sets.push(`updated_at = NOW()`);
-
-    const res = await pool.query(
-      `UPDATE contacts SET ${sets.join(", ")} WHERE id = $${i} RETURNING *`,
-      [...values, id]
+  async updateContact(id: string, patch: any, client: DbClient | null = null) {
+    const res = await q(
+      client,
+      `
+      UPDATE contacts SET
+        full_name      = COALESCE($2, full_name),
+        first_name     = COALESCE($3, first_name),
+        last_name      = COALESCE($4, last_name),
+        organization   = COALESCE($5, organization),
+        company        = COALESCE($6, company),
+        title          = COALESCE($7, title),
+        primary_email  = COALESCE($8, primary_email),
+        primary_phone  = COALESCE($9, primary_phone),
+        emails         = COALESCE($10, emails),
+        phones         = COALESCE($11, phones),
+        city           = COALESCE($12, city),
+        state          = COALESCE($13, state),
+        metadata       = COALESCE($14, metadata),
+        updated_at     = now()
+      WHERE id = $1
+      RETURNING *
+      `,
+      [
+        id,
+        patch.full_name ?? null,
+        patch.first_name ?? null,
+        patch.last_name ?? null,
+        patch.organization ?? null,
+        patch.company ?? null,
+        patch.title ?? null,
+        patch.primary_email ?? null,
+        patch.primary_phone ?? null,
+        patch.emails ?? null,
+        patch.phones ?? null,
+        patch.city ?? null,
+        patch.state ?? null,
+        patch.metadata ?? null,
+      ]
     );
-
-    return res.rows[0] ?? null;
+    return res.rows[0];
   },
 
-  async deleteContact(id: string) {
-    const pool = getPool();
-    const res = await pool.query(`DELETE FROM contacts WHERE id=$1`, [id]);
+  async deleteContact(id: string, client: DbClient | null = null) {
+    const res = await q(client, `DELETE FROM contacts WHERE id=$1`, [id]);
     return (res.rowCount ?? 0) > 0;
   },
 };

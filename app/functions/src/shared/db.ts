@@ -5,7 +5,11 @@ let pool: Pool | null = null;
 
 export function getPool(): Pool {
   if (!pool) {
-    pool = new Pool({ connectionString: requireEnv("DATABASE_URL") });
+    pool = new Pool({
+      connectionString: requireEnv("DATABASE_URL"),
+      ssl: { rejectUnauthorized: false },
+      max: 5,
+    });
   }
   return pool;
 }
