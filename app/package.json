@@ -1,0 +1,12 @@
+{
+  "name": "contactlist-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build:all": "npm --prefix functions run build && npm --prefix web run build",
+    "dev": "npm --prefix web run dev",
+    "dev:functions": "npm --prefix functions run dev",
+    "lint": "npm --prefix functions run lint && npm --prefix web run lint",
+    "test": "npm --prefix functions run test && npm --prefix web run test"
+  }
+}

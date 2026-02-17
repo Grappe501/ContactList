@@ -1,23 +1,19 @@
 [build]
-  base = "."
-  command = "npm --prefix app/web ci && npm --prefix app/web run build && npm --prefix app/functions ci && npm --prefix app/functions run build"
-  publish = "app/web/dist"
-  functions = "app/functions/dist"
+  base = "app"
+  publish = "web/dist"
+  command = "npm run build:all"
+
+[functions]
+  directory = "functions/dist"
+  node_bundler = "esbuild"
 
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/index/:splat"
+  from = "/.netlify/functions/api/*"
+  to = "/.netlify/functions/api/:splat"
   status = 200
 
+# SPA fallback (HashRouter already, but keep for future)
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Robots-Tag = "noindex, nofollow"
-    Referrer-Policy = "no-referrer"
-    X-Content-Type-Options = "nosniff"
-    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
