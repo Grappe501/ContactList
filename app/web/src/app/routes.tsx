@@ -1,3 +1,4 @@
+// app/web/src/app/routes.tsx
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
@@ -13,6 +14,7 @@ import RequireAuth from "./RequireAuth";
 export default function AppRoutes() {
   return (
     <Routes>
+      {/* Default */}
       <Route path="/" element={<Navigate to="/contacts" replace />} />
 
       {/* Public */}
@@ -68,6 +70,7 @@ export default function AppRoutes() {
         }
       />
 
+      {/* Catch-all */}
       <Route path="*" element={<div>Not found</div>} />
     </Routes>
   );
